@@ -25,6 +25,7 @@ typedef struct
   char id;
   char *data;
   int consumed_packets;
+  double ratio;
 } source;
 
 typedef struct {
@@ -32,19 +33,24 @@ typedef struct {
   char data[PACKET_SIZE-1];
 } small_packet;
 
-double randomval() {
+double randomDouble() {
   return (double)rand() / RAND_MAX;
 }
 
-int generate_control_bit(double weight_for_one) {
-  double val = randomval();
+int bitToggle(double ratioA, double ratioB) {
+  double randomValue = randomDouble();
 
-  if (val < weight_for_one) { return 1; }
-
-  return 0;
+  if (randomValue < ratioA / (ratioA + ratioB))
+  {
+    return 0;
+  }
+  else
+  {
+    return 1;
+  }
 }
 
-void init_big_packets(source *s, int big_packets_numbers) {
+void initDataPackages(source *s, int big_packets_numbers) {
   s->data = malloc(big_packets_numbers * sizeof(BIG_PACKET_SIZE));
 
   for (int i = 0; i < BIG_PACKET_SIZE * big_packets_numbers; i++) {
@@ -58,16 +64,12 @@ void getSlice(const char *sourceArray, int startIndex, int length, char *destina
   }
 }
 
-void multiplexer(source *source_0, source *source_1, int control_bit, char *outputBuffer) {
-  if (control_bit >= 2) {
-    printf("Invalid control bit\n");
-    return;
-  }
+void multiplexer(source *source_0, source *source_1, char *outputBuffer) {
+  int bit = bitToggle(source_0->ratio, source_1->ratio);
 
-  source *s = control_bit == 0 ? source_0 : source_1;
-  small_packet sp;
+  source *s = bit == 0 ? source_0 : source_1;
+  small_packet sp = { .id = s->id };
 
-  sp.id = s->id;
   getSlice(s->data, (s->consumed_packets * (PACKET_SIZE - 1)), PACKET_SIZE - 1, sp.data);
   s->consumed_packets += 1;
 
@@ -92,14 +94,11 @@ int main()
 {
   srand(time(NULL));
 
-  double weight_percentage = 50.0;
-  double weight_for_one = weight_percentage / 100.0;
+  source source_0 = { .id = 0, .consumed_packets = 0, .ratio = 2.0 };
+  source source_1 = { .id = 1, .consumed_packets = 0, .ratio = 4.0 };
 
-  source source_0 = { .id = 0, .consumed_packets = 0 };
-  source source_1 = { .id = 1, .consumed_packets = 0 };
-
-  init_big_packets(&source_0, SOURCE_0_PACKAGES);
-  init_big_packets(&source_1, SOURCE_1_PACKAGES);
+  initDataPackages(&source_0, SOURCE_0_PACKAGES);
+  initDataPackages(&source_1, SOURCE_1_PACKAGES);
 
   char outputBuffer[MAX_BUFFER];
 
@@ -148,7 +147,7 @@ int main()
       command[bytesRead] = '\0';
       trim(command);
       if (strcasecmp(command, "fetch") == 0) {
-        multiplexer(&source_0, &source_1, generate_control_bit(weight_for_one), outputBuffer);
+        multiplexer(&source_0, &source_1, outputBuffer);
         send(clientSocket, outputBuffer, strlen(outputBuffer), 0);
       } else if (strcasecmp(command, "quit") == 0) {
         send(clientSocket, "Bye\n", strlen("Bye\n"), 0);
