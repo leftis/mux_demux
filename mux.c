@@ -12,6 +12,7 @@
 #include <arpa/inet.h>
 #include <ctype.h>
 #include <time.h>
+#include "data.h"
 
 #define PORT 12345
 #define MAX_BUFFER 128
@@ -44,20 +45,20 @@ int bitToggle(double ratioA, double ratioB) {
   if (randomValue < ratioA / (ratioA + ratioB))
   {
     return 0;
-  }
-  else
-  {
+  } else {
     return 1;
   }
 }
 
 void initDataPackages(source *s, int big_packets_numbers) {
-  s->data = malloc(big_packets_numbers * sizeof(BIG_PACKET_SIZE));
+  s->data = malloc(big_packets_numbers * (sizeof(BIG_PACKET_SIZE)+1));
+  s->remaning_packets = (BIG_PACKET_SIZE * big_packets_numbers) / PACKET_SIZE;
 
-  for (int i = 0; i < BIG_PACKET_SIZE * big_packets_numbers; i++) {
-    s->data[i] = 'a';
+  // this copies the 640b packet size onto the source.data
+  // once per big file asked by the excercise.
+  for (int i = 0; i < big_packets_numbers; i++) {
+    memcpy(s->data + (i * BIG_PACKET_SIZE), byteArray, BIG_PACKET_SIZE);
   }
-  s->remaning_packets = (BIG_PACKET_SIZE * big_packets_numbers)/PACKET_SIZE;
 }
 
 void getSlice(const char *sourceArray, int startIndex, int length, char *destinationArray) {
@@ -67,11 +68,19 @@ void getSlice(const char *sourceArray, int startIndex, int length, char *destina
 }
 
 void multiplexer(source *source_0, source *source_1, char *outputBuffer) {
+  if (
+    source_0->remaning_packets == 0 &&
+    source_1->remaning_packets == 0
+  ) {
+    snprintf(outputBuffer, MAX_BUFFER, "%s", "No more data");
+    return;
+  }
+
   int bit;
   source *s;
 
   // default bit is 0
-  if (source_0->remaning_packets > 0 & source_1->remaning_packets > 0) {
+  if (source_0->remaning_packets > 0 && source_1->remaning_packets > 0) {
     bit = bitToggle(source_0->ratio, source_1->ratio);
   } else {
     bit = source_1->remaning_packets > 0 ? 1 : 0;
@@ -80,11 +89,14 @@ void multiplexer(source *source_0, source *source_1, char *outputBuffer) {
   s = bit == 0 ? source_0 : source_1;
   small_packet sp = { .id = s->id };
 
+  // get a slice from the source data
   getSlice(s->data, (s->consumed_packets * PACKET_SIZE), PACKET_SIZE-1, sp.data);
+
   s->consumed_packets += 1;
   s->remaning_packets -=1;
 
-  snprintf(outputBuffer, MAX_BUFFER, "%d%.*s", sp.id, PACKET_SIZE-1, sp.data);
+  snprintf(outputBuffer, MAX_BUFFER,
+           "%d%.*s", sp.id, PACKET_SIZE - 1, sp.data);
 }
 
 void trim(char *str) {
@@ -170,8 +182,7 @@ int main()
       } else if (strcasecmp(command, "quit") == 0) {
         send(clientSocket, "Bye\n", strlen("Bye\n"), 0);
         close(clientSocket);
-      }
-      else if (strcasecmp(command, "help") == 0) {
+      } else if (strcasecmp(command, "help") == 0) {
         strcpy(outputBuffer, "Commands: fetch | quit | help\n");
         send(clientSocket, outputBuffer, strlen(outputBuffer), 0);
       } else {
