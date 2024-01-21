@@ -12,18 +12,21 @@
 #include <arpa/inet.h>
 #include <ctype.h>
 #include <time.h>
+#include <stdbool.h>
+
+#include "queue.h"
 #include "data.h"
 
 #define PORT 12345
-#define MAX_BUFFER 128
+#define MAX_BUFFER 65
 #define BIG_PACKET_SIZE 640
-#define PACKET_SIZE 64
+#define PACKET_SIZE 2
 #define SOURCE_0_PACKAGES 4
 #define SOURCE_1_PACKAGES 2
 
 typedef struct
 {
-  char id;
+  char identifier;
   char *data;
   int consumed_packets;
   int remaning_packets;
@@ -31,28 +34,37 @@ typedef struct
 } source;
 
 typedef struct {
-  char id;
-  char data[PACKET_SIZE];
+  char identifier;
+  char datum;
 } small_packet;
+
 
 double randomDouble() {
   return (double)rand() / RAND_MAX;
 }
 
-int bitToggle(double ratioA, double ratioB) {
-  double randomValue = randomDouble();
+source* bitToggle(source *s1, source *s2) {
+  double ratio1 = s1->ratio;
+  double ratio2 = s2->ratio;
+  int bit = 0;
 
-  if (randomValue < ratioA / (ratioA + ratioB))
-  {
-    return 0;
+  if (s1->remaning_packets > 0 && s2->remaning_packets > 0) {
+    double randomValue = randomDouble();
+    if (randomValue > ratio1 / (ratio1 + ratio2)) {
+      bit = 1;
+    }
   } else {
-    return 1;
+    if (s2->remaning_packets > 0) {
+      bit = 1;
+    }
   }
+
+  return bit == 0 ? s1 : s2;
 }
 
 void initDataPackages(source *s, int big_packets_numbers) {
   s->data = malloc(big_packets_numbers * (sizeof(BIG_PACKET_SIZE)+1));
-  s->remaning_packets = (BIG_PACKET_SIZE * big_packets_numbers) / PACKET_SIZE;
+  s->remaning_packets = BIG_PACKET_SIZE * big_packets_numbers;
 
   // this copies the 640b packet size onto the source.data
   // once per big file asked by the excercise.
@@ -61,42 +73,31 @@ void initDataPackages(source *s, int big_packets_numbers) {
   }
 }
 
-void getSlice(const char *sourceArray, int startIndex, int length, char *destinationArray) {
-  for (int i = 0; i <= length; i++) {
-    destinationArray[i] = sourceArray[startIndex + i];
-  }
-}
+// Out needs to be 64kb, packets from both sources
+// Since every packet needs to register at least 2 bytes, 1 for id and 1 for datum
+// lets say we can have 64/2 iterations = 32 iterations
+void multiplexer(source *s1, source *s2, queue *q) {
+  int s1_count = s1->remaning_packets;
+  int s2_count = s2->remaning_packets;
 
-void multiplexer(source *source_0, source *source_1, char *outputBuffer) {
-  if (
-    source_0->remaning_packets == 0 &&
-    source_1->remaning_packets == 0
-  ) {
-    snprintf(outputBuffer, MAX_BUFFER, "%s", "No more data");
+  bool packets = (s1_count > 0 || s2_count > 0);
+
+  if (!packets) {
     return;
   }
 
-  int bit;
-  source *s;
+  int i = 0;
 
-  // default bit is 0
-  if (source_0->remaning_packets > 0 && source_1->remaning_packets > 0) {
-    bit = bitToggle(source_0->ratio, source_1->ratio);
-  } else {
-    bit = source_1->remaning_packets > 0 ? 1 : 0;
+  while (i < 32 && packets)
+  {
+    source *s = bitToggle(s1, s2);
+    char bt = s->data[s->consumed_packets];
+    enqueue(q, s->identifier);
+    enqueue(q, bt);
+    s->consumed_packets += 1;
+    s->remaning_packets -= 1;
+   i += 1;
   }
-
-  s = bit == 0 ? source_0 : source_1;
-  small_packet sp = { .id = s->id };
-
-  // get a slice from the source data
-  getSlice(s->data, (s->consumed_packets * PACKET_SIZE), PACKET_SIZE-1, sp.data);
-
-  s->consumed_packets += 1;
-  s->remaning_packets -=1;
-
-  snprintf(outputBuffer, MAX_BUFFER,
-           "%d%.*s", sp.id, PACKET_SIZE - 1, sp.data);
 }
 
 void trim(char *str) {
@@ -116,16 +117,21 @@ void trim(char *str) {
 int main()
 {
   srand(time(NULL));
+  queue q = {
+    .front = -1,
+    .rear = -1,
+    .size = -1
+  };
 
   source source_0 = {
-    .id = 0,
-    .consumed_packets = 0,
-    .ratio = 1.0 };
+      .identifier = '0',
+      .consumed_packets = 0,
+      .ratio = 1.0};
 
   source source_1 = {
-    .id = 1,
-    .consumed_packets = 0,
-    .ratio = 1.0 };
+      .identifier = '1',
+      .consumed_packets = 0,
+      .ratio = 1.0};
 
   initDataPackages(&source_0, SOURCE_0_PACKAGES);
   initDataPackages(&source_1, SOURCE_1_PACKAGES);
@@ -177,8 +183,9 @@ int main()
       command[bytesRead] = '\0';
       trim(command);
       if (strcasecmp(command, "fetch") == 0) {
-        multiplexer(&source_0, &source_1, outputBuffer);
-        send(clientSocket, outputBuffer, strlen(outputBuffer), 0);
+        multiplexer(&source_0, &source_1, &q);
+        send(clientSocket, q.data, strlen(q.data), 0);
+        reset(&q);
       } else if (strcasecmp(command, "quit") == 0) {
         send(clientSocket, "Bye\n", strlen("Bye\n"), 0);
         close(clientSocket);

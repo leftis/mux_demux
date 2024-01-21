@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 
+# This file creates the static 640byte data array
+
 import random
 
-# List of allowed hexadecimal values
+# List of hexademical values with utf representation
 allowed_hex_values = [
     "0x21",
     "0x22",
