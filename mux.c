@@ -14,13 +14,13 @@
 #include <time.h>
 #include <stdbool.h>
 
-#include "queue.h"
+#include "vec.c"
+#include "vector.h"
 #include "data.h"
 
 #define PORT 12345
-#define MAX_BUFFER 65
+#define MAX_BUFFER 64
 #define BIG_PACKET_SIZE 640
-#define PACKET_SIZE 2
 #define SOURCE_0_PACKAGES 4
 #define SOURCE_1_PACKAGES 2
 
@@ -32,12 +32,6 @@ typedef struct
   int remaning_packets;
   double ratio;
 } source;
-
-typedef struct {
-  char identifier;
-  char datum;
-} small_packet;
-
 
 double randomDouble() {
   return (double)rand() / RAND_MAX;
@@ -63,46 +57,38 @@ source* bitToggle(source *s1, source *s2) {
 }
 
 void initDataPackages(source *s, int big_packets_numbers) {
-  s->data = malloc(big_packets_numbers * (sizeof(BIG_PACKET_SIZE)+1));
+  s->data = malloc(big_packets_numbers * BIG_PACKET_SIZE);
   s->remaning_packets = BIG_PACKET_SIZE * big_packets_numbers;
 
-  // this copies the 640b packet size onto the source.data
-  // once per big file asked by the excercise.
   for (int i = 0; i < big_packets_numbers; i++) {
     memcpy(s->data + (i * BIG_PACKET_SIZE), byteArray, BIG_PACKET_SIZE);
   }
 }
 
-// Out needs to be 64kb, packets from both sources
-// Since every packet needs to register at least 2 bytes, 1 for id and 1 for datum
-// lets say we can have 64/2 iterations = 32 iterations
-void multiplexer(source *s1, source *s2, queue *q) {
+void multiplexer(source *s1, source *s2, Vector *line, int space) {
   int s1_count = s1->remaning_packets;
   int s2_count = s2->remaning_packets;
 
   bool packets = (s1_count > 0 || s2_count > 0);
 
-  if (!packets) {
+  if (s1_count == 0 && s2_count == 0) {
     return;
   }
-
-  int i = 0;
-
-  while (i < 32 && packets)
+  int i=0;
+  while (i < space && packets)
   {
     source *s = bitToggle(s1, s2);
-    char bt = s->data[s->consumed_packets];
-    enqueue(q, s->identifier);
-    enqueue(q, bt);
+    vector_push_back(line, &s->identifier);
+    vector_push_back(line, &s->data[s->consumed_packets]);
+
     s->consumed_packets += 1;
     s->remaning_packets -= 1;
-   i += 1;
+    i++;
   }
 }
 
 void trim(char *str) {
   int start = 0, end = strlen(str) - 1;
-
   while (isspace((unsigned char)str[start])) {
     start++;
   }
@@ -117,16 +103,13 @@ void trim(char *str) {
 int main()
 {
   srand(time(NULL));
-  queue q = {
-    .front = -1,
-    .rear = -1,
-    .size = -1
-  };
+  Vector line;
+  vector_setup(&line, 64, sizeof(char));
 
   source source_0 = {
       .identifier = '0',
       .consumed_packets = 0,
-      .ratio = 1.0};
+      .ratio = 2.0};
 
   source source_1 = {
       .identifier = '1',
@@ -182,10 +165,23 @@ int main()
     while ((bytesRead = recv(clientSocket, command, sizeof(command), 0)) > 0) {
       command[bytesRead] = '\0';
       trim(command);
+
       if (strcasecmp(command, "fetch") == 0) {
-        multiplexer(&source_0, &source_1, &q);
-        send(clientSocket, q.data, strlen(q.data), 0);
-        reset(&q);
+        multiplexer(&source_0, &source_1, &line, 32);
+
+        if (!vector_is_empty(&line)) {
+          // send the packet
+          send(clientSocket, line.data, strlen(line.data), 0);
+
+          VECTOR_FOR_EACH(&line, i)
+          {
+            vector_pop_back(&line);
+          }
+        } else {
+          const char *data = "";
+          size_t dataSize = strlen(data);
+          send(clientSocket, data, dataSize, 0);
+        }
       } else if (strcasecmp(command, "quit") == 0) {
         send(clientSocket, "Bye\n", strlen("Bye\n"), 0);
         close(clientSocket);

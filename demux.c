@@ -4,25 +4,42 @@
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <ncurses.h>
-#include <sys/queue.h>
+#include <assert.h>
 
-#define SERVER_IP "127.0.0.1" // Replace with your server's IP address
-#define SERVER_PORT 12345     // Replace with your server's port
+#include "vector.h"
+#include "vec.c"
 
-#define PACKET_SIZE 2
-#define B16 16
+#define SERVER_IP "127.0.0.1"
+#define SERVER_PORT 12345
+
+void demux(char *line, Vector *reg0, Vector *reg1);
 
 
 int main()
 {
+  Vector reg0;
+  Vector reg1;
+
+  vector_setup(&reg0, 64, sizeof(char));
+  vector_setup(&reg1, 64, sizeof(char));
+
   int clientSocket = socket(AF_INET, SOCK_STREAM, 0);
+  char o0[4096] = {'\0'};
+  int o0pos=0;
+  char o1[4096] = {'\0'};
+  int o1pos=0;
 
-  //
-  char source_0_reg[8][8];
-  char source_1_reg[8][8];
+  initscr();
+  cbreak();
+  noecho();
 
-  int s1_full = 0;
-  int s2_full = 0;
+  init_pair(1, COLOR_WHITE, COLOR_BLACK);
+
+  WINDOW *win1 = newwin(LINES / 2 - 2, COLS - 2, 1, 1);
+  WINDOW *win2 = newwin(LINES / 2 - 1, COLS - 2, LINES / 2, 1);
+
+  wrefresh(win1);
+  wrefresh(win2);
 
   if (clientSocket == -1)
   {
@@ -41,21 +58,8 @@ int main()
     exit(EXIT_FAILURE);
   }
 
-  // Initialize ncurses
-  // initscr();
-  // cbreak();
-  // noecho();
-  // keypad(stdscr, TRUE);
-
-  // Create two windows for displaying data with dynamic buffers
-  // WINDOW *win_s1 = newwin(30, 60, 1, 1);
-  // WINDOW *win_s2 = newwin(30, 60, 1, 62);
-  // wrefresh(win_s1);
-  // wrefresh(win_s2);
-
   while (1)
   {
-    // Send "fetch" command
     const char *fetchCommand = "fetch";
     if (send(clientSocket, fetchCommand, strlen(fetchCommand), 0) == -1)
     {
@@ -63,9 +67,8 @@ int main()
       exit(EXIT_FAILURE);
     }
 
-    // Receive and print the response
-    char responseBuffer[PACKET_SIZE];
-    ssize_t bytesRead = recv(clientSocket, responseBuffer, sizeof(responseBuffer), 0);
+    char lineBuffer[64];
+    ssize_t bytesRead = recv(clientSocket, lineBuffer, 65, 0);
 
     if (bytesRead == -1)
     {
@@ -74,60 +77,53 @@ int main()
     }
     else if (bytesRead == 0)
     {
-      // Server has no more data, break from the loop
+      perror("here");
       break;
     }
 
-    responseBuffer[bytesRead] = '\0';
-    // demux(responseBuffer, source_0_reg, source_1_reg);
-    // now the content is assigned registries
-    // we need to start removing data out of it
-    // printf()
+    lineBuffer[bytesRead] = '\0';
 
-    // if (s1_full)
-    // {
-    //   // we have a full registry from the multiplexer in which case we need to push those byte into our queue and empty the registry.
-    //   wclear(win_s1);
-    //   box(win_s1, 0, 0);
-    //   mvwprintw(win_s1, 1, 1, "Source 0 Buffer:");
-    //   mvwprintw(win_s1, 2, 2, "%s", s1_);
-    //   wrefresh(win_s1);
-    // }
+    demux(lineBuffer, &reg0, &reg1);
 
-    // if (s2_full)
-    // {
-    //   // Print and clear source_1_reg
-    //   wclear(win_s2);
-    //   box(win_s2, 0, 0);
-    //   mvwprintw(win_s2, 1, 1, "Source 1 Buffer:");
-    //   mvwprintw(win_s2, 2, 2, "%s", o2out);
-    //   wrefresh(win_s2);
-    // }
+    VECTOR_FOR_EACH(&reg0, i)
+    {
+      char s = ITERATOR_GET_AS(char, &i);
+      o0[o0pos] = s;
+      o0pos+=1;
+    }
 
-    usleep(100000); // 100 milliseconds
+    mvwprintw(win1, 0, 0, "O0:%s", o0);
+
+    VECTOR_FOR_EACH(&reg1, d)
+    {
+      char s = ITERATOR_GET_AS(char, &d);
+      o1[o1pos] = s;
+      o1pos += 1;
+    }
+
+    mvwprintw(win2, 0, 0, "O1:%s", o1);
+
+    printf("\n");
+    vector_clear(&reg0);
+    vector_clear(&reg1);
+    wrefresh(win1);
+    wrefresh(win2);
+    usleep(10000);
   }
 
-  // Free dynamically allocated memory
-
-  // Close the socket
   close(clientSocket);
-
-  // Clean up ncurses
-  // endwin();
-
+  endwin();
   return 0;
 }
 
-// void demux(char *packet, char s1_reg[8][8], char *s2_reg[8][8])
-// {
-  // char *reg =
-  //   (packet[0] == '1') ? s2_reg : (packet[0] == '0') ? s1_reg : NULL;
-
-  // memcpy(reg, packet, PACKET_SIZE);
-
-  // if (*reg == *s1_reg) {
-  //   *s1_full = 1;
-  // } else {
-  //   *s2_full = 1;
-  // }
-// }
+// packet: 64 bytes of muxed data
+void demux(char *packet, Vector *reg0, Vector *reg1) {
+  int i = 0;
+  while(i <= 62) {
+    if (i % 2 == 0) {
+      Vector *vp = *(packet[i] == '0' ? &reg0 : &reg1);
+      vector_push_back(vp, &packet[i + 1]);
+    }
+    i+=1;
+  }
+}

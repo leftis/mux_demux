@@ -1,9 +1,9 @@
 CC = gcc
-CFLAGS = -Wall -Wextra
+CFLAGS = -Wall -Wextra #-v
 
 # For MacOS
 ifeq ($(shell uname), Darwin)
-    LDFLAGS = -lpthread -lpcap
+    LDFLAGS = -lpthread -lpcap -lncurses
 endif
 
 # For Windows (MinGW)
@@ -16,10 +16,10 @@ all: generate_data mux demux
 generate_data:
 	python3 gen.py
 
-mux: mux.c data.h
+mux: mux.c data.h vector.h vec.c
 	$(CC) $(CFLAGS) $< -o $@$(EXE_EXT) $(LDFLAGS)
 
-demux: demux.c data.h
+demux: demux.c data.h vector.h vec.c
 	$(CC) $(CFLAGS) $< -o $@$(EXE_EXT) $(LDFLAGS)
 
 # cpa: cpa.c data.h
