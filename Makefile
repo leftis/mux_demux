@@ -14,7 +14,7 @@ endif
 all: generate_data mux demux
 
 generate_data:
-	python3 gen.py
+	./gen.py
 
 mux: mux.c data.h vector.h vec.c
 	$(CC) $(CFLAGS) $< -o $@$(EXE_EXT) $(LDFLAGS)

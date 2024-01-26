@@ -1,0 +1,29 @@
+{
+  "files.associations": {
+    "*.excalidraw": "json",
+    "*.excalidrawlib": "json",
+    "stdio.h": "c",
+    "__locale": "c",
+    "stdlib.h": "c",
+    "array": "c",
+    "vector": "c",
+    "string": "c",
+    "string_view": "c",
+    "__split_buffer": "c",
+    "__node_handle": "c",
+    "__hash_table": "c",
+    "bitset": "c",
+    "initializer_list": "c",
+    "unordered_map": "c",
+    "utility": "c",
+    "vector.h": "c",
+    "iosfwd": "c",
+    "iterator": "c",
+    "stdbool.h": "c",
+    "ctype.h": "c",
+    "time.h": "c",
+    "inet.h": "c",
+    "unistd.h": "c",
+    "string.h": "c"
+  }
+}
