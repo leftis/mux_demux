@@ -65,6 +65,7 @@ void initDataPackages(source *s, int big_packets_numbers) {
   }
 }
 
+// This is the multiplexer
 void multiplexer(source *s1, source *s2, Vector *line, int space) {
   int s1_count = s1->remaning_packets;
   int s2_count = s2->remaning_packets;
@@ -109,7 +110,7 @@ int main()
   source source_0 = {
       .identifier = '0',
       .consumed_packets = 0,
-      .ratio = 2.0};
+      .ratio = 10.0};
 
   source source_1 = {
       .identifier = '1',
@@ -121,6 +122,7 @@ int main()
 
   char outputBuffer[MAX_BUFFER];
 
+  // unix sockets
   int serverSocket = socket(AF_INET, SOCK_STREAM, 0);
   if (serverSocket == -1) {
     perror("Socket creation failed");
@@ -167,6 +169,7 @@ int main()
       trim(command);
 
       if (strcasecmp(command, "fetch") == 0) {
+        // multiplex data of 32 bytes + 32 identifier bytes
         multiplexer(&source_0, &source_1, &line, 32);
 
         if (!vector_is_empty(&line)) {

@@ -14,7 +14,6 @@
 
 void demux(char *line, Vector *reg0, Vector *reg1);
 
-
 int main()
 {
   Vector reg0;
@@ -28,7 +27,8 @@ int main()
   int o0pos=0;
   char o1[4096] = {'\0'};
   int o1pos=0;
-
+  
+  // For output 
   initscr();
   cbreak();
   noecho();
@@ -40,6 +40,7 @@ int main()
 
   wrefresh(win1);
   wrefresh(win2);
+  // For output 
 
   if (clientSocket == -1)
   {
@@ -58,6 +59,7 @@ int main()
     exit(EXIT_FAILURE);
   }
 
+  // Loop for fetching data
   while (1)
   {
     const char *fetchCommand = "fetch";
@@ -108,7 +110,8 @@ int main()
     vector_clear(&reg1);
     wrefresh(win1);
     wrefresh(win2);
-    usleep(10000);
+    // small delay so that we can check the characters
+    usleep(100000);
   }
 
   close(clientSocket);
@@ -119,7 +122,11 @@ int main()
 // packet: 64 bytes of muxed data
 void demux(char *packet, Vector *reg0, Vector *reg1) {
   int i = 0;
+  // For packets total length 64 bytes
+  // loop and assign the data byte to the correct registry
   while(i <= 62) {
+    // the header byte is the first byte every two bytes
+    // [data][0|1]
     if (i % 2 == 0) {
       Vector *vp = *(packet[i] == '0' ? &reg0 : &reg1);
       vector_push_back(vp, &packet[i + 1]);
