@@ -93,15 +93,11 @@ int main()
     lineBuffer[bytesRead] = '\0';
     demux(lineBuffer, &reg0, &reg1);
 
-    int cc1 = 0;
-    int cc2 = 0;
-    
     VECTOR_FOR_EACH(&reg0, i)
     {
       char s0 = ITERATOR_GET_AS(char, &i);
       printf("0%c", s0);
       fputc(s0, fPtrO0);
-      cc1+=1;
     }
 
     VECTOR_FOR_EACH(&reg1, d)
@@ -110,7 +106,6 @@ int main()
       printf("1%c", s1);
 
       fputc(s1, fPtrO1);
-      cc2+=1;
     }
     vector_clear(&reg0);
     vector_clear(&reg1);
