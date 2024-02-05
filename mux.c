@@ -75,6 +75,7 @@ void multiplexer(source *s1, source *s2, Vector *line, int space) {
   if (s1_count == 0 && s2_count == 0) {
     return;
   }
+  
   int i=0;
   while (i < space && packets)
   {
@@ -110,7 +111,7 @@ int main()
   source source_0 = {
       .identifier = '0',
       .consumed_packets = 0,
-      .ratio = 10.0};
+      .ratio = 1.0};
 
   source source_1 = {
       .identifier = '1',
@@ -152,6 +153,7 @@ int main()
 
   printf("Waiting for connections...\n");
 
+  int i=0;
   while (1)
   {
     int clientSocket = accept(serverSocket, NULL, NULL);
@@ -169,34 +171,33 @@ int main()
       trim(command);
 
       if (strcasecmp(command, "fetch") == 0) {
-        // multiplex data of 32 bytes + 32 identifier bytes
-        multiplexer(&source_0, &source_1, &line, 32);
-
-        if (!vector_is_empty(&line)) {
-          // send the packet
-          send(clientSocket, line.data, strlen(line.data), 0);
-
-          VECTOR_FOR_EACH(&line, i)
-          {
-            vector_pop_back(&line);
-          }
+        if (source_0.remaning_packets == 0 &&
+          source_1.remaning_packets == 0) {
+          send(clientSocket, NULL, 0, 0);
+          close(clientSocket);
         } else {
-          const char *data = "";
-          size_t dataSize = strlen(data);
-          send(clientSocket, data, dataSize, 0);
+          // multiplex data of 32 bytes + 32 identifier bytes
+          multiplexer(&source_0, &source_1, &line, 32);        
+          // send the packet
         }
+        send(clientSocket, line.data, strlen(line.data), 0);
+        vector_clear(&line);
+
       } else if (strcasecmp(command, "quit") == 0) {
         send(clientSocket, "Bye\n", strlen("Bye\n"), 0);
         close(clientSocket);
+
       } else if (strcasecmp(command, "help") == 0) {
         strcpy(outputBuffer, "Commands: fetch | quit | help\n");
         send(clientSocket, outputBuffer, strlen(outputBuffer), 0);
+
       } else {
         send(clientSocket, "Invalid command\n", strlen("Invalid command\n"), 0);
       }
     }
+    break;
   }
-
+  printf("%d", i);
   free(source_0.data);
   free(source_1.data);
   close(serverSocket);

@@ -11,10 +11,11 @@ ifeq ($(OS), Windows_NT)
     EXE_EXT = .exe
 endif
 
-all: generate_data mux demux
+# all: generate_data mux demux
+all: mux demux
 
-generate_data:
-	./gen.py
+# generate_data:
+# 	./gen.py
 
 mux: mux.c data.h vector.h vec.c
 	$(CC) $(CFLAGS) $< -o $@$(EXE_EXT) $(LDFLAGS)
@@ -26,6 +27,6 @@ demux: demux.c data.h vector.h vec.c
 # 	$(CC) $(CFLAGS) $< -o $@$(EXE_EXT) $(LDFLAGS)
 
 clean:
-	rm -f mux$(EXE_EXT) demux$(EXE_EXT) cpa$(EXE_EXT) data.h
+	rm -f mux$(EXE_EXT) demux$(EXE_EXT) cpa$(EXE_EXT) out1.txt out2.txt
 
 .PHONY: all clean
