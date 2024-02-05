@@ -17,6 +17,8 @@ can display on the demux the characters.
 ## Convert hex to utf
 https://onlinetools.com/utf8/convert-hexadecimal-to-utf8
 
+## Data Mocking
+For generating new data run ./gen.py, it will generate a new data.h
 
 ## Infos
 - Demuliplexer asks for next data not specific on size, data gets red byte per byte
