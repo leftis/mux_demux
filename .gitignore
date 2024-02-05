@@ -1,3 +1,5 @@
 # Ignore executable files
 mux
 demux
+out0.txt
+out1.txt
