@@ -104,7 +104,6 @@ int main()
     {
       char s1 = ITERATOR_GET_AS(char, &d);
       printf("1%c", s1);
-
       fputc(s1, fPtrO1);
     }
     vector_clear(&reg0);
@@ -114,6 +113,7 @@ int main()
   fclose(fPtrO0);
   fclose(fPtrO1);
   close(clientSocket);
+
   return 0;
 }
 
